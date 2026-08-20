@@ -1,0 +1,23 @@
+name: PermaDeathDifficultySystem
+version: '1.0-SNAPSHOT'
+description: A progressive 35-day hardcore difficulty system with missions, relics, custom AI, and boss encounters.
+
+main: me.pirot.permaDeathDifficultySystem.PermaDeathDifficultySystem
+api-version: '1.19'
+load: POSTWORLD
+
+authors: [ Pirot ]
+
+commands:
+  pdds:
+    description: PermaDeath Difficulty System admin commands
+    usage: /pdds <subcommand> [args]
+    aliases: [permadeath, pds]
+
+permissions:
+  pdds.admin:
+    description: Full admin access to all PDDS commands
+    default: op
+  pdds.use:
+    description: Basic PDDS info commands
+    default: true

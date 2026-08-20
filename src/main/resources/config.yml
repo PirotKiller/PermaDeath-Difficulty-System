@@ -1,0 +1,230 @@
+# ================================
+# PermaDeath Difficulty System
+# Configuration File
+# ================================
+
+general:
+  # Current day in the 35-day progression (1-35)
+  current-day: 1
+  # Duration of each "day" in real-time minutes (default: 60)
+  day-duration-minutes: 60
+  # Whether the day automatically advances after the duration expires
+  auto-advance: true
+  # Whether day effects are cumulative (Day N includes Days 1 through N-1)
+  cumulative-effects: true
+  # Broadcast messages when day advances
+  broadcast-day-change: true
+
+# ================================
+# Per-Day Toggles & Parameters
+# ================================
+day-settings:
+  day-1:
+    enabled: true
+    spider-web-shoot: true
+    spawner-light-destroy-radius: 16
+  day-2:
+    enabled: true
+    crops-stop-growing: true
+    zombie-resistance-level: 1
+  day-3:
+    enabled: true
+    hunger-interval-seconds: 1800
+    sleeping-disabled: true
+    fox-steal-chance: 1.0
+  day-4:
+    enabled: true
+    mob-health-bonus-percent: 20
+    wolf-hunger-radius: 16
+    spider-resistance-level: 2
+    spider-strength-level: 1
+  day-5:
+    enabled: true
+    pumpkin-lightning-chance: 0.05
+    cat-darkness-radius: 16
+    skeleton-bow-power: 3
+    skeleton-bow-flame: true
+  day-6:
+    enabled: true
+    permanent-storm: true
+    rain-blindness-chance: 0.1
+    enderman-immobilize-seconds: 3
+    fishing-mob-spawn-chance: 0.03
+  day-7:
+    enabled: true
+    mob-strength-bonus-percent: 10
+    killer-rabbits: true
+  day-8:
+    enabled: true
+    mining-fatigue-interval-seconds: 1800
+    spawner-burst-min: 5
+    spawner-burst-max: 10
+    giant-slimes-enabled: true
+  day-9:
+    enabled: true
+    salmon-replaced-by-drowned: true
+    raids-harder: true
+  day-10:
+    enabled: true
+    passive-mobs-hostile: true
+    targeting-range: 100
+  day-11:
+    enabled: true
+    bed-lightning-chance: 0.05
+    totem-failure-chance: 0.10
+    quantum-creepers: true
+  day-12:
+    enabled: true
+    weakness-interval-seconds: 1800
+    mob-speed-bonus-percent: 30
+  day-13:
+    enabled: true
+    squid-to-elder-guardian: true
+    cod-to-guardian: true
+    giant-magma-cubes: true
+    phantom-levitation-radius: 16
+  day-14:
+    enabled: true
+    diamond-armor-lightning-chance: 0.05
+    natural-regen-disabled: true
+    torch-damage-radius: 16
+    torch-damage-amount: 2.0
+  day-15:
+    enabled: true
+    axolotl-poison-radius: 16
+    cow-explode-chance: 0.1
+  day-16:
+    enabled: true
+    slowness-interval-seconds: 1800
+    rapid-drowning-multiplier: 5.0
+    iron-golem-to-vex: true
+  day-17:
+    enabled: true
+    warden-slowness-radius: 20
+    zombie-break-blocks: true
+  day-18:
+    enabled: true
+    lava-damage-multiplier: 3.0
+    fire-damage-multiplier: 3.0
+    poison-interval-seconds: 1800
+  day-19:
+    enabled: true
+    bat-blindness-radius: 16
+    silverfish-invisible: true
+  day-20:
+    enabled: true
+    targeting-range: 256
+    bare-hand-damage: 20.0
+    ender-pearl-damage-multiplier: 2.0
+  day-21:
+    enabled: true
+    ender-dragon-stage: true
+    end-opens: true
+    y-above-150-damage: 2.0
+    giant-zombies: true
+    wither-interval-seconds: 1800
+    player-max-health: 4
+    enderman-pick-blocks: true
+  day-22:
+    enabled: true
+    shulker-projectile-explode: true
+    shulker-death-explode: true
+  day-23:
+    enabled: true
+    ender-quantum-creepers: true
+    ender-ghasts: true
+  day-24:
+    enabled: true
+    cow-to-ravager: true
+    ravager-charge-radius: 5
+  day-25:
+    enabled: true
+    wither-boss-spawn-interval-seconds: 600
+  day-26:
+    enabled: true
+    spider-water-speed-multiplier: 3.0
+  day-27:
+    enabled: true
+    skeleton-bow-power: 10
+    arrow-lightning: true
+  day-28:
+    enabled: true
+    endermite-of-death-hp: 1000
+    endermite-of-death-damage: 500
+  day-29:
+    enabled: true
+    spawner-mine-speed-increase: true
+  day-30:
+    enabled: true
+    elytra-lightning-chance: 0.05
+  day-31:
+    enabled: true
+    bedrock-obsidian-wither-level: 3
+  day-32:
+    enabled: true
+    ender-quantum-destroy-obsidian: true
+  day-33:
+    enabled: true
+    phantom-death-explode: true
+  day-34:
+    enabled: true
+    acid-rain: true
+    acid-rain-poison-level: 2
+  day-35:
+    enabled: true
+    the-core-boss: true
+
+# ================================
+# Missions Configuration
+# ================================
+missions:
+  reward-drop-if-full: true
+  items-remain-after-completion: true
+
+# ================================
+# Relics Configuration
+# ================================
+relics:
+  tier-1:
+    ultra-shield: true
+    ultra-totem: true
+    dragon-slayer: true
+    mountain-devourer: true
+    elder-turtle-helmet: true
+  tier-2:
+    propulsion-trident: true
+    olympic-torch: true
+    lucky-clover: true
+    infernal-elytra: true
+    sacred-pearl: true
+    sacred-tree-apple: true
+    world-eater: true
+    blade-of-olympus: true
+    poseidons-trident: true
+  tier-3:
+    nautilus-helmet: true
+    hercules-chestplate: true
+    helmet-of-hades: true
+    aegis: true
+    hermes-boots: true
+    spartan-greaves: true
+    curse-remover: true
+    totem-of-true-god: true
+    onigari-no-ryuuou: true
+
+# ================================
+# AI Configuration
+# ================================
+ai:
+  wall-targeting: true
+  invisibility-counter: true
+  default-detection-range: 48
+
+# ================================
+# Scoreboard Configuration
+# ================================
+scoreboard:
+  enabled: true
+  title: "&4&l☠ PERMADEATH ☠"
+  footer: "&7permadeath.server"
+
