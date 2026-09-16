@@ -330,6 +330,53 @@ public class EndgameDaysHandler extends DayHandler {
         }
     }
 
+    // ==================== Day 32: Ender Quantum Creepers eat obsidian and water ====================
+
+    /**
+     * Vanilla blast resistance makes obsidian immune to creeper explosions and water absorbs
+     * the blast entirely, so the Day 32 mechanic has to clear those blocks manually after the
+     * detonation resolves.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onQuantumCreeperExplode(EntityExplodeEvent event) {
+        if (!isDayActive(32)) return;
+        if (!plugin.getConfigManager().getDaySetting(32, "ender-quantum-destroy-obsidian", true)) return;
+        if (!(event.getEntity() instanceof Creeper creeper)) return;
+        if (!creeper.hasMetadata("pdds_ender_quantum_creeper")) return;
+
+        int radius = plugin.getConfigManager().getDaySetting(32, "obsidian-destroy-radius", 4);
+        Location center = event.getLocation();
+        World world = center.getWorld();
+        if (world == null) return;
+
+        long radiusSq = (long) radius * radius;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if ((long) dx * dx + (long) dy * dy + (long) dz * dz > radiusSq) continue;
+
+                    org.bukkit.block.Block block = world.getBlockAt(
+                            center.getBlockX() + dx, center.getBlockY() + dy, center.getBlockZ() + dz);
+                    if (!isQuantumDestructible(block)) continue;
+
+                    block.setType(Material.AIR);
+                    plugin.getBlockIndex().onBlockChanged(block, Material.AIR);
+                }
+            }
+        }
+        world.spawnParticle(Particle.DRAGON_BREATH, center, 80, radius / 2.0, radius / 2.0, radius / 2.0, 0.05);
+        world.playSound(center, Sound.ENTITY_ENDERMAN_TELEPORT, 2.0f, 0.4f);
+    }
+
+    private boolean isQuantumDestructible(org.bukkit.block.Block block) {
+        Material type = block.getType();
+        if (type == Material.OBSIDIAN || type == Material.CRYING_OBSIDIAN) return true;
+        if (type == Material.WATER) return true;
+        // Waterlogged blocks count as "water-containing" per the spec.
+        return block.getBlockData() instanceof org.bukkit.block.data.Waterlogged waterlogged
+                && waterlogged.isWaterlogged();
+    }
+
     // ==================== Day 30: Lightning on Elytra users ====================
     @EventHandler
     public void onElytraFlight(PlayerMoveEvent event) {

@@ -146,8 +146,7 @@ public class ScoreboardManager implements Listener {
         if (mm != null && mm.hasCompletedToday(player.getUniqueId())) {
             progressStr = "§a✔ Completed";
         } else if (mission != null && mm != null) {
-            String key = MissionManager.getMissionKey(mission);
-            int current = mm.getProgress(player.getUniqueId(), key);
+            int current = mm.getProgress(player.getUniqueId());
             progressStr = "§a" + current + " §7/ §e" + mission.getTargetCount();
         } else {
             progressStr = "§7N/A";

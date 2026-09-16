@@ -2,6 +2,11 @@ package me.pirot.permaDeathDifficultySystem.config;
 
 import me.pirot.permaDeathDifficultySystem.PermaDeathDifficultySystem;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 
 /**
  * Manages all plugin configuration loading, saving, and typed access.
@@ -20,6 +25,38 @@ public class ConfigManager {
         plugin.saveDefaultConfig();
         plugin.reloadConfig();
         this.config = plugin.getConfig();
+        applyBundledDefaults();
+
+        if (plugin.getBlockIndex() != null) {
+            plugin.getBlockIndex().clear();
+        }
+    }
+
+    /**
+     * Backs the live config with the copy bundled in the jar.
+     *
+     * <p>{@code saveDefaultConfig()} only writes the file when it's absent, so a server that
+     * upgrades the plugin keeps its old config and silently misses any newly added keys.
+     * Layering the bundled copy underneath means new options resolve to their intended
+     * defaults without rewriting (and stripping the comments from) the operator's file.
+     */
+    private void applyBundledDefaults() {
+        InputStream bundled = plugin.getResource("config.yml");
+        if (bundled == null) return;
+
+        YamlConfiguration defaults = YamlConfiguration.loadConfiguration(
+                new InputStreamReader(bundled, StandardCharsets.UTF_8));
+        config.setDefaults(defaults);
+
+        long missing = defaults.getKeys(true).stream()
+                .filter(key -> !defaults.isConfigurationSection(key))
+                .filter(key -> !config.isSet(key))
+                .count();
+        if (missing > 0) {
+            plugin.getLogger().info("config.yml is missing " + missing
+                    + " option(s) added in this version; using bundled defaults for them. "
+                    + "Delete config.yml to regenerate it with the new options documented.");
+        }
     }
 
     public void save() {
@@ -107,6 +144,14 @@ public class ConfigManager {
 
     public boolean isRelicEnabled(String tier, String relicKey) {
         return config.getBoolean("relics." + tier + "." + relicKey, true);
+    }
+
+    /**
+     * CustomModelData for a relic, used by the resource pack. 0 disables the override,
+     * leaving the relic looking like its plain vanilla base item.
+     */
+    public int getRelicModelData(String relicKey, int defaultValue) {
+        return config.getInt("relics.custom-model-data." + relicKey, defaultValue);
     }
 
     // ==================== Missions ====================

@@ -1,0 +1,20 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "minecraft:item/netherite_sword"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "custom_model_data": 2008
+      },
+      "model": "pdds:item/blade-of-olympus"
+    },
+    {
+      "predicate": {
+        "custom_model_data": 3009
+      },
+      "model": "pdds:item/onigari-no-ryuuou"
+    }
+  ]
+}

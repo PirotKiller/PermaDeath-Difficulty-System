@@ -47,6 +47,7 @@ public class DayHandlerRegistry implements Listener {
     private void registerHandler(DayHandler handler) {
         handlers.add(handler);
         Bukkit.getPluginManager().registerEvents(handler, plugin);
+        handler.startTasks();
     }
 
     @EventHandler

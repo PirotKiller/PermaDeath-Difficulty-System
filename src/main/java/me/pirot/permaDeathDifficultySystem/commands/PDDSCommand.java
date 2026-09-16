@@ -36,10 +36,27 @@ import java.util.Set;
  */
 public class PDDSCommand implements CommandExecutor {
 
+    // One node per command group rather than a single blanket admin check, so a server can
+    // hand out e.g. mission support powers without also handing out day control.
+    public static final String PERM_DAY = "pdds.admin.day";
+    public static final String PERM_PENALTY = "pdds.admin.penalty";
+    public static final String PERM_RELIC = "pdds.admin.relic";
+    public static final String PERM_MISSION = "pdds.admin.mission";
+    public static final String PERM_RELOAD = "pdds.admin.reload";
+    /** Viewing your own mission status is available to everyone. */
+    public static final String PERM_MISSION_STATUS = "pdds.mission.status";
+
     private final PermaDeathDifficultySystem plugin;
 
     public PDDSCommand(PermaDeathDifficultySystem plugin) {
         this.plugin = plugin;
+    }
+
+    /** Returns true if the sender may proceed; otherwise reports the missing node. */
+    private boolean require(CommandSender sender, String node) {
+        if (sender.hasPermission(node)) return true;
+        sender.sendMessage(Component.text("You lack the permission " + node, NamedTextColor.RED));
+        return false;
     }
 
     @Override
@@ -70,10 +87,7 @@ public class PDDSCommand implements CommandExecutor {
     // ==================== Day Commands ====================
 
     private void handleDay(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("pdds.admin")) {
-            sender.sendMessage(Component.text("No permission!", NamedTextColor.RED));
-            return;
-        }
+        if (!require(sender, PERM_DAY)) return;
 
         if (args.length < 2) {
             sender.sendMessage(Component.text("Usage: /pdds day <set|get|advance>", NamedTextColor.YELLOW));
@@ -114,10 +128,7 @@ public class PDDSCommand implements CommandExecutor {
     // ==================== Penalty Commands ====================
 
     private void handlePenalty(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("pdds.admin")) {
-            sender.sendMessage(Component.text("No permission!", NamedTextColor.RED));
-            return;
-        }
+        if (!require(sender, PERM_PENALTY)) return;
 
         if (args.length < 2) {
             sender.sendMessage(Component.text("Usage: /pdds penalty <add|remove|list> <player> [slot]", NamedTextColor.YELLOW));
@@ -187,10 +198,7 @@ public class PDDSCommand implements CommandExecutor {
     // ==================== Relic Commands ====================
 
     private void handleRelic(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("pdds.admin")) {
-            sender.sendMessage(Component.text("No permission!", NamedTextColor.RED));
-            return;
-        }
+        if (!require(sender, PERM_RELIC)) return;
 
         if (args.length < 2) {
             sender.sendMessage(Component.text("Usage: /pdds relic <give|list>", NamedTextColor.YELLOW));
@@ -222,7 +230,10 @@ public class PDDSCommand implements CommandExecutor {
                 sender.sendMessage(Component.text("=== Available Relics ===", NamedTextColor.GOLD, TextDecoration.BOLD));
                 for (String id : plugin.getRelicManager().getRelicIds()) {
                     String displayName = plugin.getRelicManager().getRelicDisplayName(id);
-                    sender.sendMessage(Component.text("  • " + id + " — " + displayName, NamedTextColor.YELLOW));
+                    int modelData = plugin.getRelicManager().getModelData(id);
+                    String suffix = modelData > 0 ? " §8[model " + modelData + "]" : "";
+                    sender.sendMessage(Component.text("  • " + id + " — " + displayName + suffix,
+                            NamedTextColor.YELLOW));
                 }
             }
             default -> sender.sendMessage(Component.text("Usage: /pdds relic <give|list>", NamedTextColor.YELLOW));
@@ -243,8 +254,11 @@ public class PDDSCommand implements CommandExecutor {
             case "status" -> {
                 Player target;
                 if (args.length >= 3) {
+                    // Inspecting someone else is a moderation action; your own status is not.
+                    if (!require(sender, PERM_MISSION)) return;
                     target = Bukkit.getPlayer(args[2]);
                 } else if (sender instanceof Player) {
+                    if (!require(sender, PERM_MISSION_STATUS)) return;
                     target = (Player) sender;
                 } else {
                     sender.sendMessage(Component.text("Specify a player!", NamedTextColor.RED));
@@ -264,8 +278,7 @@ public class PDDSCommand implements CommandExecutor {
 
                 MissionManager mm = plugin.getMissionManager();
                 boolean completed = mm.hasCompletedToday(target.getUniqueId());
-                String key = MissionManager.getMissionKey(mission);
-                int progress = mm.getProgress(target.getUniqueId(), key);
+                int progress = mm.getProgress(target.getUniqueId());
 
                 sender.sendMessage(Component.text("=== Mission Status: " + target.getName() + " ===", NamedTextColor.GOLD));
                 sender.sendMessage(Component.text("  Day: " + currentDay, NamedTextColor.YELLOW));
@@ -276,10 +289,7 @@ public class PDDSCommand implements CommandExecutor {
                 sender.sendMessage(Component.text("  Penalty: " + mission.getPenaltyDescription(), NamedTextColor.YELLOW));
             }
             case "complete" -> {
-                if (!sender.hasPermission("pdds.admin")) {
-                    sender.sendMessage(Component.text("No permission!", NamedTextColor.RED));
-                    return;
-                }
+                if (!require(sender, PERM_MISSION)) return;
                 if (args.length < 3) {
                     sender.sendMessage(Component.text("Usage: /pdds mission complete <player>", NamedTextColor.YELLOW));
                     return;
@@ -293,10 +303,7 @@ public class PDDSCommand implements CommandExecutor {
                 sender.sendMessage(Component.text("Force-completed mission for " + target.getName(), NamedTextColor.GREEN));
             }
             case "reset" -> {
-                if (!sender.hasPermission("pdds.admin")) {
-                    sender.sendMessage(Component.text("No permission!", NamedTextColor.RED));
-                    return;
-                }
+                if (!require(sender, PERM_MISSION)) return;
                 if (args.length < 3) {
                     sender.sendMessage(Component.text("Usage: /pdds mission reset <player>", NamedTextColor.YELLOW));
                     return;
@@ -328,10 +335,7 @@ public class PDDSCommand implements CommandExecutor {
     // ==================== Reload ====================
 
     private void handleReload(CommandSender sender) {
-        if (!sender.hasPermission("pdds.admin")) {
-            sender.sendMessage(Component.text("No permission!", NamedTextColor.RED));
-            return;
-        }
+        if (!require(sender, PERM_RELOAD)) return;
         plugin.getConfigManager().reload();
         sender.sendMessage(Component.text("Configuration reloaded!", NamedTextColor.GREEN));
     }

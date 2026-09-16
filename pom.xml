@@ -14,6 +14,8 @@
     <properties>
         <java.version>17</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Where `package` drops the built jar. Override with -Dpdds.deploy.dir=... -->
+        <pdds.deploy.dir>C:/Users/thaku/AppData/Local/JetBrains/IntelliJIdea2026.1/com.nickawrist.MinecraftDevServer/PermaDeath/plugins</pdds.deploy.dir>
     </properties>
 
     <build>
@@ -28,38 +30,10 @@
                     <target>${java.version}</target>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.3</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.1.0</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>run</goal>
-                        </goals>
-                        <configuration>
-                            <target>
-                                <copy file="${project.build.directory}/${project.build.finalName}.jar"
-                                      tofile="C:/Users/thaku/AppData/Local/JetBrains/IntelliJIdea2026.1/com.nickawrist.MinecraftDevServer/PermaDeath/plugins/${project.build.finalName}.jar"/>
-                            </target>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
+            <!--
+                No maven-shade-plugin: paper-api is the only dependency and it is `provided`,
+                so there is nothing to shade. Running it only produced an extra original-*.jar.
+            -->
         </plugins>
         <resources>
             <resource>
@@ -68,6 +42,46 @@
             </resource>
         </resources>
     </build>
+
+    <profiles>
+        <!--
+            Copies the built jar straight into the local test server. Activates only when that
+            server directory actually exists, so a clean `mvn package` still works on any other
+            machine or on CI instead of failing on a missing absolute path.
+        -->
+        <profile>
+            <id>deploy-to-test-server</id>
+            <activation>
+                <file>
+                    <exists>C:/Users/thaku/AppData/Local/JetBrains/IntelliJIdea2026.1/com.nickawrist.MinecraftDevServer/PermaDeath/plugins</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>3.1.0</version>
+                        <executions>
+                            <execution>
+                                <id>copy-to-test-server</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <copy file="${project.build.directory}/${project.build.finalName}.jar"
+                                              todir="${pdds.deploy.dir}"/>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
     <repositories>
         <repository>

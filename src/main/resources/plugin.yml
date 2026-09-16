@@ -15,9 +15,34 @@ commands:
     aliases: [permadeath, pds]
 
 permissions:
+  # Umbrella node. Granting this grants every child below it.
   pdds.admin:
     description: Full admin access to all PDDS commands
     default: op
+    children:
+      pdds.admin.day: true
+      pdds.admin.penalty: true
+      pdds.admin.relic: true
+      pdds.admin.mission: true
+      pdds.admin.reload: true
+  pdds.admin.day:
+    description: View, set and advance the global day
+    default: op
+  pdds.admin.penalty:
+    description: Apply, remove and list player penalties
+    default: op
+  pdds.admin.relic:
+    description: Give relics and list the relic registry
+    default: op
+  pdds.admin.mission:
+    description: Inspect, force-complete and reset player missions
+    default: op
+  pdds.admin.reload:
+    description: Reload the plugin configuration
+    default: op
+  pdds.mission.status:
+    description: View your own mission status
+    default: true
   pdds.use:
     description: Basic PDDS info commands
     default: true

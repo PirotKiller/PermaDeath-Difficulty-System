@@ -4,167 +4,163 @@ import me.pirot.permaDeathDifficultySystem.PermaDeathDifficultySystem;
 import me.pirot.permaDeathDifficultySystem.core.DayManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.entity.*;
-import org.bukkit.event.EventHandler;
+import org.bukkit.Material;
+import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.World;
+import org.bukkit.entity.Creeper;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Spider;
 import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
-import org.bukkit.potion.PotionEffectType;
+import org.bukkit.util.Vector;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
- * Manages special mob behaviors:
- * - Quantum Creeper teleportation toward players
- * - Spider web shooting (Day 1)
- * - Spider water speed (Day 26)
+ * Behaviours that vanilla AI can't express, driven from a single ticker:
+ * <ul>
+ *   <li>Day 1 — spiders shoot webs at their target</li>
+ *   <li>Day 11 — Quantum Creepers blink toward the nearest player</li>
+ *   <li>Day 23 — Ender Quantum Creepers blink directly onto a player</li>
+ *   <li>Day 26 — spiders swim fast</li>
+ * </ul>
+ *
+ * <p>Everything here is player-scoped. The previous version ran three separate timers that each
+ * walked {@code world.getEntities()} for every world once or twice a second, so its cost scaled
+ * with world size rather than with the number of players actually nearby.
  */
 public class SpecialMobManager implements Listener {
 
+    private static final int MOB_SCAN_RADIUS = 64;
+
     private final PermaDeathDifficultySystem plugin;
+    private int tickCounter;
 
     public SpecialMobManager(PermaDeathDifficultySystem plugin) {
         this.plugin = plugin;
     }
 
-    /**
-     * Starts periodic tasks for special mob behaviors.
-     */
     public void startTasks() {
-        // Quantum Creeper teleportation — every 3 seconds
-        Bukkit.getScheduler().runTaskTimer(plugin, this::tickQuantumCreepers, 60L, 60L);
-
-        // Spider web shooting — every 2 seconds
-        Bukkit.getScheduler().runTaskTimer(plugin, this::tickSpiderWebs, 40L, 40L);
-
-        // Spider water speed — every 1 second
-        Bukkit.getScheduler().runTaskTimer(plugin, this::tickSpiderWaterSpeed, 20L, 20L);
+        // One 1s ticker; the slower behaviours divide down off the counter.
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
     }
 
-    /**
-     * Quantum Creepers teleport toward the nearest player periodically.
-     */
-    private void tickQuantumCreepers() {
-        DayManager dm = plugin.getDayManager();
-        if (dm == null || !dm.isDayActive(11)) return;
+    private void tick() {
+        DayManager dayManager = plugin.getDayManager();
+        if (dayManager == null) return;
 
-        for (org.bukkit.World world : Bukkit.getWorlds()) {
-            for (Entity entity : world.getEntities()) {
-                if (entity instanceof Creeper creeper && entity.hasMetadata("pdds_quantum_creeper")) {
-                    // Find nearest player
-                    Player nearest = null;
-                    double nearestDist = 64 * 64; // 64 block range
-                    for (Player p : world.getPlayers()) {
-                        double dist = p.getLocation().distanceSquared(creeper.getLocation());
-                        if (dist < nearestDist) {
-                            nearestDist = dist;
-                            nearest = p;
-                        }
-                    }
+        tickCounter++;
+        boolean webTick = tickCounter % 2 == 0;      // every 2s
+        boolean teleportTick = tickCounter % 3 == 0; // every 3s
 
-                    if (nearest != null && nearestDist < 64 * 64 && nearestDist > 4 * 4) {
-                        // Teleport partway toward the player
-                        Location creeperLoc = creeper.getLocation();
-                        Location playerLoc = nearest.getLocation();
-                        double dx = playerLoc.getX() - creeperLoc.getX();
-                        double dz = playerLoc.getZ() - creeperLoc.getZ();
-                        double distance = Math.sqrt(dx * dx + dz * dz);
+        boolean day1 = dayManager.isDayActive(1);
+        boolean day11 = dayManager.isDayActive(11);
+        boolean day23 = dayManager.isDayActive(23);
+        boolean day26 = dayManager.isDayActive(26);
+        if (!day1 && !day11 && !day23 && !day26) return;
 
-                        // Teleport 5-10 blocks toward the player
-                        double teleportDist = Math.min(5 + Math.random() * 5, distance - 3);
-                        double newX = creeperLoc.getX() + (dx / distance) * teleportDist;
-                        double newZ = creeperLoc.getZ() + (dz / distance) * teleportDist;
-                        int newY = world.getHighestBlockYAt((int) newX, (int) newZ);
+        double waterSpeed = plugin.getConfigManager().getDaySetting(26, "spider-water-speed-multiplier", 3.0);
 
-                        Location teleportLoc = new Location(world, newX, newY + 1, newZ);
-                        creeper.teleport(teleportLoc);
+        // Dedupe: a mob within range of two players must only act once.
+        Set<Entity> handled = new HashSet<>();
 
-                        // Particle/sound effect
-                        world.spawnParticle(org.bukkit.Particle.PORTAL, creeper.getLocation(), 30, 0.5, 1, 0.5);
-                        world.playSound(creeper.getLocation(), org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.5f);
-                    }
-                }
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            for (Entity entity : player.getNearbyEntities(MOB_SCAN_RADIUS, MOB_SCAN_RADIUS, MOB_SCAN_RADIUS)) {
+                if (!handled.add(entity)) continue;
 
-                // Ender Quantum Creepers (Day 23) - same but more aggressive
-                if (entity instanceof Creeper creeper && entity.hasMetadata("pdds_ender_quantum_creeper")) {
-                    Player nearest = null;
-                    double nearestDist = 128 * 128;
-                    for (Player p : world.getPlayers()) {
-                        double dist = p.getLocation().distanceSquared(creeper.getLocation());
-                        if (dist < nearestDist) {
-                            nearestDist = dist;
-                            nearest = p;
-                        }
-                    }
-
-                    if (nearest != null && nearestDist > 3 * 3) {
-                        Location playerLoc = nearest.getLocation();
-                        // Teleport very close to the player
-                        double angle = Math.random() * Math.PI * 2;
-                        double dist = 2 + Math.random() * 3;
-                        Location teleportLoc = playerLoc.clone().add(
-                                Math.cos(angle) * dist, 0, Math.sin(angle) * dist);
-                        teleportLoc.setY(world.getHighestBlockYAt(teleportLoc) + 1);
-
-                        creeper.teleport(teleportLoc);
-                        world.spawnParticle(org.bukkit.Particle.DRAGON_BREATH, creeper.getLocation(), 50, 0.5, 1, 0.5);
-                        world.playSound(creeper.getLocation(), org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.5f);
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Day 1: Spiders shoot webs (place cobwebs near their target).
-     */
-    private void tickSpiderWebs() {
-        DayManager dm = plugin.getDayManager();
-        if (dm == null || !dm.isDayActive(1)) return;
-
-        for (org.bukkit.World world : Bukkit.getWorlds()) {
-            for (Entity entity : world.getEntities()) {
-                if (entity instanceof Spider spider && spider.getTarget() instanceof Player) {
-                    Player target = (Player) spider.getTarget();
-                    double dist = spider.getLocation().distanceSquared(target.getLocation());
-
-                    // Shoot web if within 16 blocks and random chance
-                    if (dist < 256 && Math.random() < 0.1) {
-                        Location webLoc = target.getLocation().clone();
-                        // Place cobweb at player's feet if the block is air
-                        if (webLoc.getBlock().getType() == org.bukkit.Material.AIR) {
-                            webLoc.getBlock().setType(org.bukkit.Material.COBWEB);
-                            // Remove after 5 seconds
-                            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                                if (webLoc.getBlock().getType() == org.bukkit.Material.COBWEB) {
-                                    webLoc.getBlock().setType(org.bukkit.Material.AIR);
-                                }
-                            }, 100L);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Day 26: Spiders move extremely fast through water.
-     */
-    private void tickSpiderWaterSpeed() {
-        DayManager dm = plugin.getDayManager();
-        if (dm == null || !dm.isDayActive(26)) return;
-
-        double speedMultiplier = plugin.getConfigManager().getDaySetting(26, "spider-water-speed-multiplier", 3.0);
-
-        for (org.bukkit.World world : Bukkit.getWorlds()) {
-            for (Entity entity : world.getEntities()) {
                 if (entity instanceof Spider spider) {
-                    // Check if spider is in water
-                    if (spider.isInWater()) {
-                        // Boost velocity
-                        org.bukkit.util.Vector velocity = spider.getVelocity();
-                        velocity.multiply(speedMultiplier);
+                    if (day26 && spider.isInWater()) {
+                        Vector velocity = spider.getVelocity().multiply(waterSpeed);
                         spider.setVelocity(velocity);
                     }
+                    if (day1 && webTick) {
+                        shootWeb(spider);
+                    }
+                } else if (teleportTick && entity instanceof Creeper creeper) {
+                    if (day23 && creeper.hasMetadata("pdds_ender_quantum_creeper")) {
+                        blinkOntoPlayer(creeper);
+                    } else if (day11 && creeper.hasMetadata("pdds_quantum_creeper")) {
+                        blinkTowardPlayer(creeper);
+                    }
                 }
             }
         }
+    }
+
+    /** Day 1: a spider webs the ground under whoever it's chasing. */
+    private void shootWeb(Spider spider) {
+        if (!(spider.getTarget() instanceof Player target)) return;
+        if (spider.getLocation().distanceSquared(target.getLocation()) >= 256) return;
+        if (Math.random() >= 0.1) return;
+
+        Location webLocation = target.getLocation().getBlock().getLocation();
+        if (webLocation.getBlock().getType() != Material.AIR) return;
+
+        webLocation.getBlock().setType(Material.COBWEB);
+        spider.getWorld().playSound(webLocation, Sound.ENTITY_SPIDER_HURT, 0.7f, 1.6f);
+
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (webLocation.getBlock().getType() == Material.COBWEB) {
+                webLocation.getBlock().setType(Material.AIR);
+            }
+        }, 100L);
+    }
+
+    /** Day 11: close part of the gap to the nearest player. */
+    private void blinkTowardPlayer(Creeper creeper) {
+        Player target = nearestPlayer(creeper, 64);
+        if (target == null) return;
+
+        Location from = creeper.getLocation();
+        double dx = target.getLocation().getX() - from.getX();
+        double dz = target.getLocation().getZ() - from.getZ();
+        double distance = Math.sqrt(dx * dx + dz * dz);
+        if (distance < 4) return;
+
+        double step = Math.min(5 + Math.random() * 5, distance - 3);
+        double x = from.getX() + (dx / distance) * step;
+        double z = from.getZ() + (dz / distance) * step;
+        teleport(creeper, new Location(creeper.getWorld(), x, 0, z), Particle.PORTAL, 1.5f);
+    }
+
+    /** Day 23: blink straight onto the player. */
+    private void blinkOntoPlayer(Creeper creeper) {
+        Player target = nearestPlayer(creeper, 128);
+        if (target == null) return;
+        if (creeper.getLocation().distanceSquared(target.getLocation()) < 9) return;
+
+        double angle = Math.random() * Math.PI * 2;
+        double distance = 2 + Math.random() * 3;
+        Location destination = target.getLocation().clone()
+                .add(Math.cos(angle) * distance, 0, Math.sin(angle) * distance);
+        teleport(creeper, destination, Particle.DRAGON_BREATH, 0.5f);
+    }
+
+    private void teleport(Creeper creeper, Location destination, Particle particle, float pitch) {
+        World world = creeper.getWorld();
+        // Only land somewhere already loaded; teleporting into unloaded terrain forces a
+        // synchronous chunk generation on the main thread.
+        if (!world.isChunkLoaded(destination.getBlockX() >> 4, destination.getBlockZ() >> 4)) return;
+
+        destination.setY(world.getHighestBlockYAt(destination) + 1);
+        creeper.teleport(destination);
+        world.spawnParticle(particle, creeper.getLocation(), 30, 0.5, 1, 0.5);
+        world.playSound(creeper.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, pitch);
+    }
+
+    private Player nearestPlayer(Entity entity, int range) {
+        Player nearest = null;
+        double nearestDistance = (double) range * range;
+
+        for (Player player : entity.getWorld().getPlayers()) {
+            double distance = player.getLocation().distanceSquared(entity.getLocation());
+            if (distance < nearestDistance) {
+                nearestDistance = distance;
+                nearest = player;
+            }
+        }
+        return nearest;
     }
 }

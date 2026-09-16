@@ -39,10 +39,10 @@ public class MissionDefinitions {
                 createReward(Material.ENDER_PEARL, 8, "§dEnder Pearls"),
                 "8 Ender Pearls", 39, "Helmet slot locked")); // 39 = helmet
 
-        MISSIONS.put(5, new Mission(5, "Kill Cats and Wolves",
-                Mission.ObjectiveType.KILL_ENTITY, EntityType.CAT, null, 10,
+        MISSIONS.put(5, Mission.kills(5, "Kill Cats and Wolves", 10,
                 createReward(Material.EXPERIENCE_BOTTLE, 16, "§aBottles o' Enchanting"),
-                "16 Bottles o' Enchanting", 40, "Off-hand slot locked")); // 40 = offhand
+                "16 Bottles o' Enchanting", 40, "Off-hand slot locked", // 40 = offhand
+                EntityType.CAT, EntityType.WOLF));
 
         MISSIONS.put(6, new Mission(6, "Kill Endermen",
                 Mission.ObjectiveType.KILL_ENTITY, EntityType.ENDERMAN, null, 10,
@@ -50,10 +50,10 @@ public class MissionDefinitions {
                 "8 Diamonds", 0, "Hotbar slot 1 locked")); // 0 = hotbar slot 0
 
         // ==================== Days 7–12 ====================
-        MISSIONS.put(7, new Mission(7, "Kill Zombie Villagers and Witches",
-                Mission.ObjectiveType.KILL_ENTITY, EntityType.ZOMBIE_VILLAGER, null, 10,
+        MISSIONS.put(7, Mission.kills(7, "Kill Zombie Villagers and Witches", 10,
                 createReward(Material.ENCHANTED_GOLDEN_APPLE, 2, "§6Enchanted Golden Apples"),
-                "2 Enchanted Golden Apples", 1, "Hotbar slot 2 locked"));
+                "2 Enchanted Golden Apples", 1, "Hotbar slot 2 locked",
+                EntityType.ZOMBIE_VILLAGER, EntityType.WITCH));
 
         MISSIONS.put(8, new Mission(8, "Kill a Giant Slime",
                 Mission.ObjectiveType.KILL_ENTITY, EntityType.SLIME, null, 1,

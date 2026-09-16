@@ -54,8 +54,13 @@ day-settings:
     enabled: true
     mob-strength-bonus-percent: 10
     killer-rabbits: true
+    # Witches throw a Wither/Blindness/Weakness/Slowness cocktail instead of vanilla payloads
+    witch-cursed-potions: true
+    witch-wither-level: 2
   day-8:
     enabled: true
+    # When true the Nether is unreachable until Day 8. Set false for vanilla portal access.
+    nether-gated: true
     mining-fatigue-interval-seconds: 1800
     spawner-burst-min: 5
     spawner-burst-max: 10
@@ -64,9 +69,15 @@ day-settings:
     enabled: true
     salmon-replaced-by-drowned: true
     raids-harder: true
+    raid-health-multiplier: 1.5
+    raid-extra-raiders: 3
   day-10:
     enabled: true
     passive-mobs-hostile: true
+    # Contact damage dealt by a hostile passive mob (applied at most once per second)
+    passive-mob-damage: 6.0
+    # Cap on animals pathfinding at players per tick, so an animal farm can't stall the server
+    max-hostile-animals-per-tick: 40
     targeting-range: 100
   day-11:
     enabled: true
@@ -89,6 +100,8 @@ day-settings:
     natural-regen-disabled: true
     torch-damage-radius: 16
     torch-damage-amount: 2.0
+    redstone-torch-radius: 3
+    redstone-torch-damage: 4.0
   day-15:
     enabled: true
     axolotl-poison-radius: 16
@@ -114,12 +127,15 @@ day-settings:
   day-20:
     enabled: true
     targeting-range: 256
+    # Bonus damage added when an empty-handed attacker hits a player
     bare-hand-damage: 20.0
     ender-pearl-damage-multiplier: 2.0
   day-21:
     enabled: true
     ender-dragon-stage: true
     end-opens: true
+    # When true the End is unreachable until Day 21. Set false for vanilla portal access.
+    end-gated: true
     y-above-150-damage: 2.0
     giant-zombies: true
     wither-interval-seconds: 1800
@@ -163,6 +179,7 @@ day-settings:
   day-32:
     enabled: true
     ender-quantum-destroy-obsidian: true
+    obsidian-destroy-radius: 4
   day-33:
     enabled: true
     phantom-death-explode: true
@@ -211,6 +228,41 @@ relics:
     curse-remover: true
     totem-of-true-god: true
     onigari-no-ryuuou: true
+
+  # ---- Resource pack model overrides ----
+  # Drives the custom models in resourcepack/. Set a relic to 0 to leave it looking like
+  # its plain vanilla base item. Change these only if they clash with another resource
+  # pack -- then re-run: python3 tools/generate_resourcepack.py
+  #
+  # Cosmetic only: relic identity comes from a persistent-data tag, never from this value.
+  custom-model-data:
+    # Tier 1
+    ultra-shield: 1001
+    ultra-totem: 1002
+    dragon-slayer: 1003
+    mountain-devourer: 1004
+    elder-turtle-helmet: 1005
+    # Tier 2
+    propulsion-trident: 2001
+    olympic-torch: 2002
+    lucky-clover: 2003
+    infernal-elytra: 2004
+    sacred-pearl: 2005
+    sacred-tree-apple: 2006
+    world-eater: 2007
+    blade-of-olympus: 2008
+    poseidons-trident: 2009
+    # Tier 3
+    nautilus-helmet: 3001
+    hercules-chestplate: 3002
+    helmet-of-hades: 3003
+    aegis: 3004
+    hermes-boots: 3005
+    spartan-greaves: 3006
+    curse-remover: 3007
+    totem-of-true-god: 3008
+    onigari-no-ryuuou: 3009
+
 
 # ================================
 # AI Configuration

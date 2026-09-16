@@ -8,14 +8,14 @@ import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.*;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Handles mechanics for Days 15–21:
@@ -114,31 +114,37 @@ public class LateDaysHandler extends DayHandler {
     }
 
     // ==================== Day 17: Zombies can break blocks ====================
-    @EventHandler
-    public void onZombieTargetDay17(EntityTargetLivingEntityEvent event) {
+
+    @Override
+    public void startTasks() {
+        // One ticker for every zombie, rather than a fresh repeating task each time a zombie
+        // acquires a target — EntityTargetLivingEntityEvent fires constantly, so the latter
+        // accumulates tasks without bound until the server dies.
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickZombieBlockBreaking, 40L, 40L);
+    }
+
+    private void tickZombieBlockBreaking() {
         if (!isDayActive(17)) return;
-        if (!(event.getEntity() instanceof Zombie zombie)) return;
-        if (!(event.getTarget() instanceof Player)) return;
+        if (!plugin.getConfigManager().getDaySetting(17, "zombie-break-blocks", true)) return;
 
-        if (plugin.getConfigManager().getDaySetting(17, "zombie-break-blocks", true)) {
-            // Schedule block breaking behavior
-            Bukkit.getScheduler().runTaskTimer(plugin, task -> {
-                if (zombie.isDead() || zombie.getTarget() == null) {
-                    task.cancel();
-                    return;
-                }
+        // Scoped to zombies near a player: an unobserved zombie chewing through terrain
+        // is pure server cost with no gameplay value.
+        Set<Zombie> seen = new HashSet<>();
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            for (Entity entity : player.getNearbyEntities(24, 16, 24)) {
+                if (!(entity instanceof Zombie zombie)) continue;
+                if (zombie.isDead() || !(zombie.getTarget() instanceof Player)) continue;
+                if (!seen.add(zombie)) continue;
 
-                // Break breakable blocks in front of the zombie
-                Location front = zombie.getLocation().add(zombie.getLocation().getDirection().multiply(1));
+                Location front = zombie.getLocation().add(zombie.getLocation().getDirection());
                 org.bukkit.block.Block block = front.getBlock();
-                Material mat = block.getType();
+                if (!isZombieBreakable(block.getType())) continue;
 
-                // Only break certain blocks (doors, crops, torches, fences)
-                if (isZombieBreakable(mat)) {
-                    block.breakNaturally();
-                    zombie.getWorld().playSound(block.getLocation(), Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 1.0f, 1.0f);
-                }
-            }, 40L, 40L); // Every 2 seconds
+                block.breakNaturally();
+                plugin.getBlockIndex().onBlockChanged(block, Material.AIR);
+                zombie.getWorld().playSound(block.getLocation(),
+                        Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 1.0f, 1.0f);
+            }
         }
     }
 
@@ -224,23 +230,28 @@ public class LateDaysHandler extends DayHandler {
         }
     }
 
-    // ==================== Day 20: Bare-hand interaction causes massive damage ====================
-    @EventHandler
-    public void onBareHandInteract(PlayerInteractEvent event) {
+    // ==================== Day 20: Unarmed attacks on players hit far harder ====================
+
+    /**
+     * Spec: "Bare-hand (unarmed) attacks against players cause massive bonus damage."
+     *
+     * <p>This is a bonus on incoming melee from an empty-handed attacker — which in practice
+     * means every weaponless zombie and skeleton becomes lethal. The previous implementation
+     * read it backwards and damaged the player for right-clicking any block bare-handed,
+     * which on Day 21 (2-heart cap) meant opening a door killed you.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBareHandAttack(EntityDamageByEntityEvent event) {
         if (!isDayActive(20)) return;
-        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (!(event.getEntity() instanceof Player)) return;
+        if (!(event.getDamager() instanceof LivingEntity attacker)) return;
 
-        Player player = event.getPlayer();
-        ItemStack mainHand = player.getInventory().getItemInMainHand();
+        org.bukkit.inventory.EntityEquipment equipment = attacker.getEquipment();
+        if (equipment == null) return;
+        if (equipment.getItemInMainHand().getType() != Material.AIR) return;
 
-        if (mainHand.getType() == Material.AIR) {
-            // Check if they're interacting with a block
-            if (event.getAction().name().contains("BLOCK")) {
-                double damage = plugin.getConfigManager().getDaySetting(20, "bare-hand-damage", 20.0);
-                player.damage(damage);
-                player.sendMessage(net.kyori.adventure.text.Component.text("§c§lYour bare hands burn from touching the cursed world!"));
-            }
-        }
+        double bonus = plugin.getConfigManager().getDaySetting(20, "bare-hand-damage", 20.0);
+        event.setDamage(event.getDamage() + bonus);
     }
 
     // ==================== Day 20: Ender Pearl double teleportation damage ====================

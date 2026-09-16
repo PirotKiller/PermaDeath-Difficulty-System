@@ -207,6 +207,16 @@ public class EnderDragonBoss implements Listener {
         }
     }
 
+    /**
+     * Tears the encounter down on plugin disable so no tasks survive a reload.
+     */
+    public void shutdown() {
+        if (breathFloodTask != null) breathFloodTask.cancel();
+        if (enemySpawnTask != null) enemySpawnTask.cancel();
+        bossBarManager.removeBossBar(BOSS_BAR_ID);
+        encounterActive = false;
+    }
+
     public boolean isEncounterActive() {
         return encounterActive;
     }

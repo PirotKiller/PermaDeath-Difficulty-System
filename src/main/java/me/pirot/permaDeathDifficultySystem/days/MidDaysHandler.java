@@ -10,13 +10,16 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.player.PlayerItemConsumeEvent;
+import org.bukkit.event.raid.RaidSpawnWaveEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 /**
  * Handles mechanics for Days 8–14:
@@ -237,28 +240,95 @@ public class MidDaysHandler extends DayHandler {
         }
     }
 
-    // ==================== Day 10: Hostile passive mob targeting ====================
-    @EventHandler
-    public void onEntityTarget(EntityTargetLivingEntityEvent event) {
+    // ==================== Day 10: Passive mobs turn hostile ====================
+
+    @Override
+    public void startTasks() {
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickHostileAnimals, 20L, 20L);
+    }
+
+    /**
+     * Drives the Day 10 "neutral/passive mobs become hostile" mechanic.
+     *
+     * <p>Animals have no attack goal in vanilla, so tagging them and calling {@code setTarget}
+     * does nothing on its own — they'd just stand there. This pathfinds them onto the nearest
+     * player and applies contact damage directly.
+     */
+    private void tickHostileAnimals() {
         if (!isDayActive(10)) return;
-        // Make hostile passive mobs target nearby players
-        if (event.getEntity() instanceof Animals animal && animal.hasMetadata("pdds_hostile")) {
-            if (event.getTarget() == null) {
-                // Find nearest player
-                int range = plugin.getConfigManager().getDaySetting(10, "targeting-range", 100);
-                Player nearest = null;
-                double nearestDist = range * range;
-                for (Player p : animal.getWorld().getPlayers()) {
-                    double dist = p.getLocation().distanceSquared(animal.getLocation());
-                    if (dist < nearestDist) {
-                        nearestDist = dist;
-                        nearest = p;
-                    }
-                }
-                if (nearest != null) {
-                    animal.setTarget(nearest);
+        if (!plugin.getConfigManager().getDaySetting(10, "passive-mobs-hostile", true)) return;
+
+        double damage = plugin.getConfigManager().getDaySetting(10, "passive-mob-damage", 6.0);
+        // Pathfinding is not free, and a nearby animal farm can easily hold hundreds of mobs.
+        int budget = plugin.getConfigManager().getDaySetting(10, "max-hostile-animals-per-tick", 40);
+        Set<Entity> handled = new HashSet<>();
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (player.isDead() || player.getGameMode() == GameMode.CREATIVE
+                    || player.getGameMode() == GameMode.SPECTATOR) continue;
+            if (handled.size() >= budget) break;
+
+            for (Entity entity : player.getNearbyEntities(24, 12, 24)) {
+                if (handled.size() >= budget) break;
+                if (!(entity instanceof Animals animal)) continue;
+                if (animal instanceof Tameable tameable && tameable.isTamed()) continue;
+                if (!handled.add(entity)) continue;
+
+                // Deliberately not gated on the pdds_hostile spawn tag: that tag is only
+                // applied at spawn time, so relying on it would leave every animal that
+                // existed before Day 10 permanently docile.
+
+                double distanceSq = animal.getLocation().distanceSquared(player.getLocation());
+                if (distanceSq <= 4.0) {
+                    // In contact: bite, on a short cooldown so it isn't once per tick.
+                    if (animal.hasMetadata("pdds_bite_cd")) continue;
+                    animal.setMetadata("pdds_bite_cd", new FixedMetadataValue(plugin, true));
+                    Bukkit.getScheduler().runTaskLater(plugin,
+                            () -> animal.removeMetadata("pdds_bite_cd", plugin), 20L);
+
+                    player.damage(damage, animal);
+                    animal.getWorld().playSound(animal.getLocation(), Sound.ENTITY_GENERIC_HURT, 0.8f, 1.4f);
+                } else {
+                    animal.setTarget(player);
+                    animal.getPathfinder().moveTo(player, 1.3);
                 }
             }
+        }
+    }
+
+    // ==================== Day 9: Raids get significantly harder ====================
+
+    /**
+     * Buffs every raider as each wave spawns and pads the wave out with extra illagers.
+     * The per-mob stat upgrades in {@link #onRaidMobSpawn} cover raiders too, so this adds
+     * the wave-level scaling on top.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onRaidWave(RaidSpawnWaveEvent event) {
+        if (!isDayActive(9)) return;
+        if (!plugin.getConfigManager().getDaySetting(9, "raids-harder", true)) return;
+
+        double healthMultiplier = plugin.getConfigManager().getDaySetting(9, "raid-health-multiplier", 1.5);
+        int extraRaiders = plugin.getConfigManager().getDaySetting(9, "raid-extra-raiders", 3);
+
+        for (Raider raider : event.getRaiders()) {
+            AttributeInstance health = raider.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+            if (health != null) {
+                health.setBaseValue(health.getBaseValue() * healthMultiplier);
+                raider.setHealth(health.getBaseValue());
+            }
+            raider.addPotionEffect(new PotionEffect(PotionEffectType.INCREASE_DAMAGE, Integer.MAX_VALUE, 1, false, false));
+            raider.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALUE, 0, false, false));
+        }
+
+        Location center = event.getRaid().getLocation();
+        for (int i = 0; i < extraRaiders; i++) {
+            Location spawnLocation = center.clone().add(
+                    random.nextInt(16) - 8, 0, random.nextInt(16) - 8);
+            spawnLocation.setY(center.getWorld().getHighestBlockYAt(spawnLocation) + 1);
+
+            EntityType type = random.nextBoolean() ? EntityType.PILLAGER : EntityType.VINDICATOR;
+            center.getWorld().spawnEntity(spawnLocation, type);
         }
     }
 

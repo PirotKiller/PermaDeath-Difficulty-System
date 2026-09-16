@@ -39,6 +39,8 @@ public final class PermaDeathDifficultySystem extends JavaPlugin {
     private ConfigManager configManager;
     private DayManager dayManager;
     private PeriodicEffectScheduler periodicEffectScheduler;
+    private me.pirot.permaDeathDifficultySystem.core.BlockIndex blockIndex;
+    private EnvironmentalEffectsListener environmentalEffectsListener;
 
     // Days
     private DayHandlerRegistry dayHandlerRegistry;
@@ -78,6 +80,9 @@ public final class PermaDeathDifficultySystem extends JavaPlugin {
         dayManager = new DayManager(this);
         periodicEffectScheduler = new PeriodicEffectScheduler(this);
 
+        blockIndex = new me.pirot.permaDeathDifficultySystem.core.BlockIndex(this);
+        Bukkit.getPluginManager().registerEvents(blockIndex, this);
+
         // Phase 3: Mission System (initialized before days so day handlers can reference it)
         penaltyManager = new PenaltyManager(this);
         missionManager = new MissionManager(this, penaltyManager);
@@ -87,12 +92,16 @@ public final class PermaDeathDifficultySystem extends JavaPlugin {
         dayHandlerRegistry.registerAll();
 
         // Register environmental and mob spawn listeners
-        EnvironmentalEffectsListener envListener = new EnvironmentalEffectsListener(this);
-        Bukkit.getPluginManager().registerEvents(envListener, this);
-        envListener.startTasks();
+        environmentalEffectsListener = new EnvironmentalEffectsListener(this);
+        Bukkit.getPluginManager().registerEvents(environmentalEffectsListener, this);
+        environmentalEffectsListener.startTasks();
 
         MobSpawnListener mobSpawnListener = new MobSpawnListener(this);
         Bukkit.getPluginManager().registerEvents(mobSpawnListener, this);
+
+        // Nether gated until Day 8, End gated until Day 21.
+        Bukkit.getPluginManager().registerEvents(
+                new me.pirot.permaDeathDifficultySystem.listeners.DimensionGateListener(this), this);
 
         // Phase 3: Mission Listeners
         Bukkit.getPluginManager().registerEvents(missionManager, this);
@@ -107,7 +116,7 @@ public final class PermaDeathDifficultySystem extends JavaPlugin {
         Bukkit.getPluginManager().registerEvents(specialMobManager, this);
         specialMobManager.startTasks();
 
-        mobAIManager = new MobAIManager(this);
+        mobAIManager = new MobAIManager(this, mobAttributeManager);
         Bukkit.getPluginManager().registerEvents(mobAIManager, this);
         mobAIManager.startTasks();
 
@@ -157,10 +166,15 @@ public final class PermaDeathDifficultySystem extends JavaPlugin {
     public void onDisable() {
         getLogger().info("PermaDeath Difficulty System shutting down...");
 
-        // Stop timers
+        // Stop timers. Cancel everything this plugin scheduled so a /reload doesn't
+        // leave orphaned tasks running against a dead plugin instance.
         if (dayManager != null) dayManager.stopTimer();
         if (periodicEffectScheduler != null) periodicEffectScheduler.stop();
         if (scoreboardManager != null) scoreboardManager.stop();
+        if (environmentalEffectsListener != null) environmentalEffectsListener.stopTasks();
+        if (theCoreBoss != null) theCoreBoss.shutdown();
+        if (enderDragonBoss != null) enderDragonBoss.shutdown();
+        Bukkit.getScheduler().cancelTasks(this);
 
         // Save data
         if (missionManager != null) missionManager.saveData();
@@ -184,6 +198,10 @@ public final class PermaDeathDifficultySystem extends JavaPlugin {
 
     public DayManager getDayManager() {
         return dayManager;
+    }
+
+    public me.pirot.permaDeathDifficultySystem.core.BlockIndex getBlockIndex() {
+        return blockIndex;
     }
 
     public MissionManager getMissionManager() {

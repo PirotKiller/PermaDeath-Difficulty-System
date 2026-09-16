@@ -1,20 +1,25 @@
 package me.pirot.permaDeathDifficultySystem.missions;
 
 import me.pirot.permaDeathDifficultySystem.PermaDeathDifficultySystem;
-import org.bukkit.entity.Entity;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
-import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerPickupItemEvent;
 import org.bukkit.event.raid.RaidFinishEvent;
 import org.bukkit.inventory.ItemStack;
 
 /**
- * Listens for game events to track mission progress (kills, item pickups, raid completions).
+ * Translates game events into mission progress.
+ *
+ * <p>Item objectives are evaluated by counting what the player actually holds rather than by
+ * accumulating pickup deltas, so crafting, smelting, shift-clicking out of a chest and picking
+ * items up off the floor all count, and nothing double-counts.
  */
 public class MissionListener implements Listener {
 
@@ -26,106 +31,75 @@ public class MissionListener implements Listener {
         this.missionManager = missionManager;
     }
 
-    /**
-     * Track entity kills for KILL_ENTITY missions.
-     */
+    private Mission currentMission() {
+        return MissionDefinitions.getMission(plugin.getDayManager().getCurrentDay());
+    }
+
+    /** Kill objectives. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityKill(EntityDeathEvent event) {
-        Entity killed = event.getEntity();
         Player killer = event.getEntity().getKiller();
         if (killer == null) return;
 
-        int currentDay = plugin.getDayManager().getCurrentDay();
-        Mission mission = MissionDefinitions.getMission(currentDay);
+        Mission mission = currentMission();
         if (mission == null || mission.getObjectiveType() != Mission.ObjectiveType.KILL_ENTITY) return;
+        if (!mission.matchesEntity(event.getEntity().getType())) return;
 
-        // Check if the killed entity type matches the mission target
-        if (mission.getTargetEntity() != null && killed.getType() == mission.getTargetEntity()) {
-            missionManager.addProgress(killer.getUniqueId(), killed.getType().name(), 1);
-        }
-
-        // Special case for Day 5: Kill Cats AND Wolves
-        if (currentDay == 5) {
-            if (killed.getType() == org.bukkit.entity.EntityType.CAT
-                    || killed.getType() == org.bukkit.entity.EntityType.WOLF) {
-                missionManager.addProgress(killer.getUniqueId(), mission.getTargetEntity().name(), 1);
-            }
-        }
-
-        // Special case for Day 7: Kill Zombie Villagers AND Witches
-        if (currentDay == 7) {
-            if (killed.getType() == org.bukkit.entity.EntityType.ZOMBIE_VILLAGER
-                    || killed.getType() == org.bukkit.entity.EntityType.WITCH) {
-                missionManager.addProgress(killer.getUniqueId(), mission.getTargetEntity().name(), 1);
-            }
-        }
+        missionManager.addProgress(killer.getUniqueId(), 1);
     }
 
-    /**
-     * Track item pickups for OBTAIN_ITEM missions.
-     */
+    /** Item objectives: recount on pickup. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onItemPickup(EntityPickupItemEvent event) {
-        if (!(event.getEntity() instanceof Player player)) return;
-
-        int currentDay = plugin.getDayManager().getCurrentDay();
-        Mission mission = MissionDefinitions.getMission(currentDay);
-        if (mission == null) return;
-        if (mission.getObjectiveType() != Mission.ObjectiveType.OBTAIN_ITEM
-                && mission.getObjectiveType() != Mission.ObjectiveType.OBTAIN_SPECIFIC_ITEM) return;
-
-        ItemStack item = event.getItem().getItemStack();
-        if (mission.getTargetItem() != null && item.getType() == mission.getTargetItem()) {
-            missionManager.addProgress(player.getUniqueId(), item.getType().name(), item.getAmount());
+        if (event.getEntity() instanceof Player player) {
+            scheduleRecount(player);
         }
     }
 
-    /**
-     * Track inventory interactions for OBTAIN_ITEM missions (crafting, smelting, etc.).
-     */
+    /** Item objectives: recount after crafting. */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onInventoryClick(InventoryClickEvent event) {
-        if (!(event.getWhoClicked() instanceof Player player)) return;
-
-        int currentDay = plugin.getDayManager().getCurrentDay();
-        Mission mission = MissionDefinitions.getMission(currentDay);
-        if (mission == null) return;
-        if (mission.getObjectiveType() != Mission.ObjectiveType.OBTAIN_ITEM
-                && mission.getObjectiveType() != Mission.ObjectiveType.OBTAIN_SPECIFIC_ITEM) return;
-
-        ItemStack cursor = event.getCursor();
-        if (cursor != null && mission.getTargetItem() != null && cursor.getType() == mission.getTargetItem()) {
-            // Count items in player's inventory
-            int totalCount = 0;
-            for (ItemStack invItem : player.getInventory().getContents()) {
-                if (invItem != null && invItem.getType() == mission.getTargetItem()) {
-                    totalCount += invItem.getAmount();
-                }
-            }
-            // Add the cursor amount
-            totalCount += cursor.getAmount();
-
-            // Update progress to the total count (overwrite, not add)
-            String key = mission.getTargetItem().name();
-            if (totalCount >= mission.getTargetCount()) {
-                missionManager.addProgress(player.getUniqueId(), key,
-                        mission.getTargetCount() - missionManager.getProgress(player.getUniqueId(), key));
-            }
+    public void onCraft(CraftItemEvent event) {
+        if (event.getWhoClicked() instanceof Player player) {
+            scheduleRecount(player);
         }
     }
 
+    /** Item objectives: recount after any inventory interaction that could move items in. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onInventoryClick(org.bukkit.event.inventory.InventoryClickEvent event) {
+        if (event.getWhoClicked() instanceof Player player) {
+            scheduleRecount(player);
+        }
+    }
+
+    /** Item objectives: recount when a furnace or similar result is collected. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onFurnaceExtract(org.bukkit.event.inventory.FurnaceExtractEvent event) {
+        scheduleRecount(event.getPlayer());
+    }
+
     /**
-     * Track raid completions for COMPLETE_RAID missions.
+     * Recounts on the next tick, once the inventory change has actually settled — during the
+     * event the moved stack may still be on the cursor rather than in a slot.
      */
+    private void scheduleRecount(Player player) {
+        Mission mission = currentMission();
+        if (mission == null) return;
+        if (mission.getObjectiveType() != Mission.ObjectiveType.OBTAIN_ITEM
+                && mission.getObjectiveType() != Mission.ObjectiveType.OBTAIN_SPECIFIC_ITEM) return;
+        if (missionManager.hasCompletedToday(player.getUniqueId())) return;
+
+        Bukkit.getScheduler().runTask(plugin, () -> missionManager.recountItems(player, mission));
+    }
+
+    /** Raid objectives. */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onRaidFinish(RaidFinishEvent event) {
-        int currentDay = plugin.getDayManager().getCurrentDay();
-        Mission mission = MissionDefinitions.getMission(currentDay);
+        Mission mission = currentMission();
         if (mission == null || mission.getObjectiveType() != Mission.ObjectiveType.COMPLETE_RAID) return;
 
-        // Credit all players who participated in the raid
         for (Player player : event.getWinners()) {
-            missionManager.addProgress(player.getUniqueId(), "RAID_COMPLETE", 1);
+            missionManager.addProgress(player.getUniqueId(), 1);
         }
     }
 }

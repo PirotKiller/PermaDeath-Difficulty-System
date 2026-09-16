@@ -1,0 +1,19 @@
+# Build output
+target/
+
+# IDE
+*.iml
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/shelf/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated resource pack zip
+pdds-relics.zip
+
+# Cached Minecraft client jar (Mojang asset source for the texture generator) + previews
+.cache/

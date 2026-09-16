@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project name="maven-antrun-" default="main">
-  <target name="main">
-    <copy file="C:\Users\thaku\IdeaProjects\PermaDeath Difficulty System\target/permadeath-difficulty-system-1.0-SNAPSHOT.jar" tofile="C:/Users/thaku/AppData/Local/JetBrains/IntelliJIdea2026.1/com.nickawrist.MinecraftDevServer/PermaDeath/plugins/permadeath-difficulty-system-1.0-SNAPSHOT.jar" />
-  </target>
-</project>

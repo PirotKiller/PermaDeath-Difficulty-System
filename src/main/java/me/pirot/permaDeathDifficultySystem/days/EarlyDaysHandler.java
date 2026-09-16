@@ -15,9 +15,12 @@ import org.bukkit.event.player.PlayerFishEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.metadata.FixedMetadataValue;
+import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.potion.PotionType;
 
 import java.util.Random;
 
@@ -159,6 +162,12 @@ public class EarlyDaysHandler extends DayHandler {
 
         double chance = plugin.getConfigManager().getDaySetting(6, "fishing-mob-spawn-chance", 0.03);
         if (random.nextDouble() < chance) {
+            // Spec: you hook a mob *instead of* loot, so drop the catch on the floor.
+            if (event.getCaught() != null) {
+                event.getCaught().remove();
+            }
+            event.setExpToDrop(0);
+
             Location loc = event.getHook().getLocation();
             Drowned drowned = (Drowned) loc.getWorld().spawnEntity(loc, EntityType.DROWNED);
             drowned.setCustomName("§bEnraged Drowned");
@@ -182,6 +191,35 @@ public class EarlyDaysHandler extends DayHandler {
 
             event.getPlayer().sendMessage(net.kyori.adventure.text.Component.text("§c§lSomething emerges from the depths!"));
         }
+    }
+
+    // ==================== Day 7: Witches throw a nastier potion ====================
+
+    /**
+     * Rewrites the witch's thrown potion payload. Vanilla witches only ever throw Slowness,
+     * Poison, Weakness or Harming; this swaps in a heavier debuff cocktail.
+     */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onWitchThrowPotion(ProjectileLaunchEvent event) {
+        if (!isDayActive(7)) return;
+        if (!(event.getEntity() instanceof ThrownPotion potion)) return;
+        if (!(potion.getShooter() instanceof Witch)) return;
+        if (!plugin.getConfigManager().getDaySetting(7, "witch-cursed-potions", true)) return;
+
+        ItemStack splash = new ItemStack(Material.SPLASH_POTION);
+        PotionMeta meta = (PotionMeta) splash.getItemMeta();
+        if (meta == null) return;
+
+        meta.setBasePotionData(new PotionData(PotionType.WATER));
+        meta.setColor(Color.fromRGB(60, 0, 80));
+        meta.addCustomEffect(new PotionEffect(PotionEffectType.WITHER, 200,
+                plugin.getConfigManager().getDaySetting(7, "witch-wither-level", 2) - 1), true);
+        meta.addCustomEffect(new PotionEffect(PotionEffectType.BLINDNESS, 160, 0), true);
+        meta.addCustomEffect(new PotionEffect(PotionEffectType.WEAKNESS, 300, 1), true);
+        meta.addCustomEffect(new PotionEffect(PotionEffectType.SLOW, 200, 2), true);
+        splash.setItemMeta(meta);
+
+        potion.setItem(splash);
     }
 
     // ==================== Day 2/4/5: Mob spawn modifications ====================

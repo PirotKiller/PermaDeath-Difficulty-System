@@ -76,6 +76,8 @@ public class PenaltyManager implements Listener {
     }
 
     public void saveData() {
+        // Clear first: only ever adding keys means removed penalties come back on restart.
+        data.set("penalties", null);
         for (Map.Entry<UUID, Set<Integer>> entry : playerPenalties.entrySet()) {
             data.set("penalties." + entry.getKey().toString(), new ArrayList<>(entry.getValue()));
         }
@@ -177,17 +179,36 @@ public class PenaltyManager implements Listener {
      * Adds a penalty (locks a slot) for a player.
      */
     public void addPenalty(UUID playerUUID, int slot) {
-        Set<Integer> penalties = playerPenalties.computeIfAbsent(playerUUID, k -> new HashSet<>());
-        penalties.add(slot);
+        applyPenalty(playerUUID, slot);
         saveData();
+        plugin.getLogger().info("Added penalty slot " + slot + " for player " + playerUUID);
+    }
+
+    /**
+     * Locks the same slot for many players with a single save.
+     *
+     * <p>Used at day rollover, where penalising each player through {@link #addPenalty} would
+     * mean one synchronous YAML write per player on the main thread.
+     */
+    public void addPenalties(Collection<UUID> playerUUIDs, int slot) {
+        if (playerUUIDs.isEmpty()) return;
+
+        for (UUID playerUUID : playerUUIDs) {
+            applyPenalty(playerUUID, slot);
+        }
+        saveData();
+        plugin.getLogger().info("Added penalty slot " + slot + " for " + playerUUIDs.size() + " player(s)");
+    }
+
+    /** Mutates in-memory state and updates the player if online; does not persist. */
+    private void applyPenalty(UUID playerUUID, int slot) {
+        playerPenalties.computeIfAbsent(playerUUID, k -> new HashSet<>()).add(slot);
 
         Player player = Bukkit.getPlayer(playerUUID);
         if (player != null) {
             refreshInventory(player);
             player.playSound(player.getLocation(), Sound.BLOCK_CHEST_LOCKED, 1.0f, 0.8f);
         }
-
-        plugin.getLogger().info("Added penalty slot " + slot + " for player " + playerUUID);
     }
 
     /**
@@ -300,19 +321,15 @@ public class PenaltyManager implements Listener {
             }
         }
 
-        // 5. Shift Click transfer
-        if (event.isShiftClick()) {
-            if (rawSlot >= 0 && rawSlot < view.getTopInventory().getSize()) {
-                // Shift click from container to player inventory
-                for (int locked : lockedSlots) {
-                    ItemStack targetItem = player.getInventory().getItem(locked);
-                    if (targetItem == null || targetItem.getType() == Material.AIR || isBarrierItem(targetItem)) {
-                        cancel = true;
-                        break;
-                    }
-                }
-            }
-        }
+        // 5. Shift Click transfer: nothing to do here.
+        //
+        // The previous version scanned every locked slot and cancelled the transfer if any
+        // was empty OR held a barrier. Since ensureSlotLocked() always leaves a barrier
+        // there, the second branch matched constantly and killed every shift-click from a
+        // container while any slot was locked. Minecraft's own fill algorithm already
+        // skips slots occupied by non-stackable items, and the barrier's unique PDC tag
+        // makes it non-stackable with plain glass panes, so the destination-is-locked case
+        // this was defending against can't actually happen.
 
         // 6. Double Click item collection
         if (click == ClickType.DOUBLE_CLICK) {

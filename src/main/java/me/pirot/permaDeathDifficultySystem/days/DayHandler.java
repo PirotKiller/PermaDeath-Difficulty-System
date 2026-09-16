@@ -27,6 +27,15 @@ public abstract class DayHandler implements Listener {
     public abstract boolean handlesDay(int day);
 
     /**
+     * Optional hook for handlers that need their own repeating tasks. Called once after
+     * registration. Prefer a single long-lived ticker here over scheduling a task per event —
+     * event-driven scheduling has no natural upper bound and will pile up tasks indefinitely.
+     */
+    public void startTasks() {
+        // no-op by default
+    }
+
+    /**
      * Helper to check if a specific day's effects are currently active.
      */
     protected boolean isDayActive(int day) {

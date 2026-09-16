@@ -443,6 +443,22 @@ public class TheCoreBoss implements Listener {
                 NamedTextColor.GOLD, TextDecoration.BOLD));
     }
 
+    /**
+     * Tears the encounter down on plugin disable so no tasks or stray entities survive a reload.
+     */
+    public void shutdown() {
+        if (attackTask != null) attackTask.cancel();
+        if (mobSpawnTask != null) mobSpawnTask.cancel();
+        if (environmentTask != null) environmentTask.cancel();
+        if (particleTask != null) particleTask.cancel();
+
+        if (coreEntity != null && !coreEntity.isDead()) {
+            coreEntity.remove();
+        }
+        bossBarManager.removeBossBar(BOSS_BAR_ID);
+        encounterActive = false;
+    }
+
     public boolean isEncounterActive() {
         return encounterActive;
     }
